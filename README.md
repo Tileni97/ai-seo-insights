@@ -1,8 +1,9 @@
 # AI SEO Insights Generator - Demo
 
-A comprehensive AI-powered SEO analysis tool that provides professional-grade content optimization insights. This demo showcases advanced web development skills using modern technologies and AI integration.
+**[Live Demo: https://ai-seo-insights-production.up.railway.app/](https://ai-seo-insights-production.up.railway.app/)**
+A comprehensive AI-powered SEO analysis tool that provides professional-grade content optimisation insights. This demo showcases advanced web development skills using modern technologies and AI integration.
 
-## 📸 Demo Screenshots
+> **Demo Status**: ✅ Deployed and running on Railway
 
 ### Main Dashboard
 ![Main Dashboard](./screen/dashboard-overview.png)
@@ -13,13 +14,13 @@ A comprehensive AI-powered SEO analysis tool that provides professional-grade co
 
 ### Google SERP Preview
 ![SERP Preview](./screen/serp-preview.png)
-*Interactive Google search preview with meta tag optimization and truncation warnings*
+*Interactive Google search preview with meta tag optimisation and truncation warnings*
 
 ### Recommendations Panel
 ![Recommendations](./screen/recommendations-panel.png)
 
 
-## 🎯 Demo Purpose
+## Demo Purpose
 
 This application was built as a demonstration of full-stack development capabilities, specifically for the **Vibe Coder** position at **Adaptify SEO**. It showcases expertise in:
 
@@ -30,7 +31,7 @@ This application was built as a demonstration of full-stack development capabili
 - Real-time content analysis
 - Professional UI/UX design
 
-## ✨ Features
+## Features
 
 ### AI-Powered Analysis
 ![AI Analysis Feature](./screens/ai-analysis-feature.png)
@@ -57,7 +58,7 @@ This application was built as a demonstration of full-stack development capabili
 - **Error Handling** with graceful fallbacks
 - **Accessibility-First** design principles
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 
 ### Backend
@@ -81,7 +82,7 @@ This application was built as a demonstration of full-stack development capabili
 - **Keyword Extraction** using summarization models
 - **Content Suggestions** with AI-powered insights
 
-## 🎨 Key Implementation Highlights
+## Key Implementation Highlights
 
 ### Advanced SEO Analysis Engine
 
@@ -97,11 +98,11 @@ class SEOAnalyzer:
 
 - Asynchronous API calls with proper error handling
 - Fallback mechanisms when AI services are unavailable
-- Response time optimization with caching strategies
+- Response time optimisation with caching strategies
 - Rate limiting and quota management
 
 
-## 🧠 AI Features Showcase
+## AI Features Showcase
 
 ### Sentiment Analysis
 
@@ -112,18 +113,18 @@ Uses state-of-the-art RoBERTa models for nuanced sentiment detection:
 
 ### Keyword Intelligence
 
-Combines traditional NLP with AI summarization:
+Combines traditional NLP with AI summarisation:
 - Frequency-based extraction with stop-word filtering
 - AI-enhanced keyword suggestions using BART models
 - Semantic similarity grouping for related terms
 
-### Content Optimization
+### Content Optimisation
 
 AI-driven recommendations with implementation guidance:
 - Priority scoring based on impact and effort
 - Category-specific suggestions (Technical, Content, Keywords, Links)
 
-## 📊 Demo Capabilities
+## Demo Capabilities
 
 ### Content Analysis
 
@@ -155,14 +156,14 @@ This application demonstrates:
 4. **Scalable Architecture**: Modular design patterns suitable for enterprise applications
 5. **Problem-Solving Skills**: Creative solutions for complex SEO analysis challenges
 
-## 🚀 Technical Achievements
+## Technical Achievements
 
 ### Performance Metrics
 
 - **Zero-dependency AI fallbacks** ensuring functionality without external services
 - **Type-safe data models** with comprehensive validation
 - **Responsive design system** with consistent visual hierarchy
-- **Performance optimization** with lazy loading and efficient state management
+- **Performance optimisation** with lazy loading and efficient state management
 - **Error boundary implementation** with user-friendly error states
 
 ## 📈 Business Value Demonstration
