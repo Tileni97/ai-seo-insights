@@ -27,7 +27,7 @@ RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 # Copy backend code
 COPY backend/ ./
 
-# Copy built frontend (if you want to serve it from the same container)
+# Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./static
 
 # Create a non-root user
