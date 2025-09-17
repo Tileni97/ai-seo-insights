@@ -1034,6 +1034,10 @@ analyzer = SEOAnalyzer(hf_client)
 # Check if static directory exists and mount it
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
+    # Mount static files with proper MIME types
+    app.mount(
+        "/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets"
+    )
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
@@ -1273,6 +1277,10 @@ async def serve_frontend_routes(full_path: str):
     # Don't serve static files for API routes or docs
     if full_path.startswith(("api/", "docs", "openapi.json", "health")):
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Handle assets properly - should never reach here due to mount, but just in case
+    if full_path.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="Asset not found")
 
     # Serve React app for all other routes
     if static_dir.exists():
