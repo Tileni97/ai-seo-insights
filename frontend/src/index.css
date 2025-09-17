@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AI SEO Insights Generator - Professional Design System
+All colors MUST be HSL. Premium gradients and glassmorphism effects.
+*/
+
+@layer base {
+  :root {
+    /* Backgrounds & Surfaces */
+    --background: 250 50% 98%;
+    --foreground: 235 19% 15%;
+    --surface: 0 0% 100%;
+    --surface-secondary: 240 33% 99%;
+    
+    /* Cards & Overlays */
+    --card: 0 0% 100%;
+    --card-foreground: 235 19% 15%;
+    --glass: 240 100% 99% / 0.7;
+    --glass-border: 240 20% 90% / 0.3;
+    
+    /* Popovers */
+    --popover: 0 0% 100%;
+    --popover-foreground: 235 19% 15%;
+    
+    /* Brand Colors - Professional Blue to Purple Gradient */
+    --primary: 235 85% 55%;
+    --primary-light: 240 85% 65%;
+    --primary-dark: 230 85% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 240 85% 65% / 0.4;
+    
+    /* Success & Growth */
+    --success: 142 76% 36%;
+    --success-light: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Warning & Attention */
+    --warning: 25 95% 53%;
+    --warning-light: 25 95% 63%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Error & Critical */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    /* Neutral Scales */
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    
+    /* Borders & Inputs */
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --input-focus: 235 85% 55%;
+    --ring: 235 85% 55%;
+    
+    /* Professional Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(235 85% 55%), hsl(270 85% 65%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 76% 46%));
+    --gradient-surface: linear-gradient(135deg, hsl(240 100% 99%), hsl(250 50% 98%));
+    --gradient-glass: linear-gradient(135deg, hsl(240 100% 99% / 0.9), hsl(250 50% 98% / 0.7));
+    
+    /* Professional Shadows */
+    --shadow-sm: 0 2px 4px hsl(235 85% 55% / 0.1);
+    --shadow-md: 0 4px 12px hsl(235 85% 55% / 0.15);
+    --shadow-lg: 0 8px 24px hsl(235 85% 55% / 0.2);
+    --shadow-glow: 0 0 40px hsl(240 85% 65% / 0.3);
+    
+    /* Border Radius */
+    --radius: 12px;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Theme - Professional Night Mode */
+    --background: 235 25% 8%;
+    --foreground: 240 50% 95%;
+    --surface: 235 20% 12%;
+    --surface-secondary: 235 15% 15%;
+    
+    --card: 235 20% 12%;
+    --card-foreground: 240 50% 95%;
+    --glass: 235 20% 15% / 0.8;
+    --glass-border: 240 20% 25% / 0.3;
+    
+    --popover: 235 20% 12%;
+    --popover-foreground: 240 50% 95%;
+    
+    /* Brand Colors - Brighter in dark mode */
+    --primary: 240 85% 65%;
+    --primary-light: 245 85% 75%;
+    --primary-dark: 235 85% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 240 85% 75% / 0.5;
+    
+    --success: 142 76% 46%;
+    --success-light: 142 76% 56%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 25 95% 63%;
+    --warning-light: 25 95% 73%;
+    --warning-foreground: 0 0% 100%;
+    
+    --destructive: 0 84.2% 65%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 240 50% 95%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 3.7% 20%;
+    --accent-foreground: 240 50% 95%;
+    
+    --border: 240 3.7% 20%;
+    --input: 240 3.7% 20%;
+    --input-focus: 240 85% 65%;
+    --ring: 240 85% 65%;
+    
+    /* Dark Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(240 85% 65%), hsl(270 85% 75%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 46%), hsl(160 76% 56%));
+    --gradient-surface: linear-gradient(135deg, hsl(235 20% 12%), hsl(235 15% 15%));
+    --gradient-glass: linear-gradient(135deg, hsl(235 20% 15% / 0.9), hsl(235 15% 18% / 0.7));
+    
+    /* Dark Shadows */
+    --shadow-sm: 0 2px 4px hsl(235 25% 5% / 0.3);
+    --shadow-md: 0 4px 12px hsl(235 25% 5% / 0.4);
+    --shadow-lg: 0 8px 24px hsl(235 25% 5% / 0.5);
+    --shadow-glow: 0 0 40px hsl(240 85% 75% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Effects */
+  .glass-card {
+    @apply backdrop-blur-lg bg-gradient-to-br from-white/90 to-white/70 dark:from-gray-900/90 dark:to-gray-800/70 border border-white/20 dark:border-gray-700/30;
+  }
+  
+  .glass-surface {
+    @apply backdrop-blur-sm bg-gradient-to-br from-white/40 to-white/20 dark:from-gray-900/40 dark:to-gray-800/20 border border-white/10 dark:border-gray-700/20;
+  }
+  
+  /* Professional Animations */
+  .animate-fade-in {
+    @apply animate-[fadeIn_0.5s_ease-out_forwards];
+  }
+  
+  .animate-slide-up {
+    @apply animate-[slideUp_0.6s_ease-out_forwards];
+  }
+  
+  .animate-scale-in {
+    @apply animate-[scaleIn_0.3s_ease-out_forwards];
+  }
+  
+  .animate-gradient {
+    @apply bg-gradient-to-r animate-[gradient_3s_ease-in-out_infinite];
+    background-size: 200% 200%;
+  }
+  
+  /* Hover Effects */
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+  }
+  
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-[0_0_30px_hsl(var(--primary-glow))];
+  }
+  
+  /* Text Effects */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary via-primary-light to-purple-600 bg-clip-text text-transparent;
+  }
+  
+  .text-shimmer {
+    @apply bg-gradient-to-r from-gray-300 via-white to-gray-300 dark:from-gray-600 dark:via-gray-400 dark:to-gray-600 bg-clip-text text-transparent animate-[shimmer_2s_ease-in-out_infinite];
+    background-size: 200% 100%;
+  }
+  
+  /* Background Patterns */
+  .bg-grid-pattern {
+    background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
