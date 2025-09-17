@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import re
@@ -7,7 +7,15 @@ from collections import Counter
 import textstat
 from textblob import TextBlob
 import uvicorn
+import os
+import requests
+import json
 from typing import Literal, List, Dict, Any
+from dotenv import load_dotenv
+import time
+
+# Load environment variables
+load_dotenv()
 
 # Download required NLTK data
 try:
@@ -33,6 +41,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Hugging Face configuration - Load from environment
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL", "distilbert-base-uncased")
+HF_API_URL = "https://api-inference.huggingface.co/models/"
+
+# Validate API key
+if not HF_API_KEY:
+    print("Warning: HF_API_KEY not found in environment variables")
+    print("AI features will be disabled")
 
 
 class AnalysisRequest(BaseModel):
@@ -91,27 +109,322 @@ class AnalysisResult(BaseModel):
     rawText: str
 
 
+class HuggingFaceClient:
+    """Client for interacting with Hugging Face API"""
+
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
+        self.headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.enabled = bool(api_key)
+
+    def query_model(self, model_name: str, payload: dict, max_retries: int = 3) -> dict:
+        """Query a Hugging Face model with retry logic"""
+        if not self.enabled:
+            print("HuggingFace API key not available, skipping AI analysis")
+            return None
+
+        url = f"{HF_API_URL}{model_name}"
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    url, headers=self.headers, json=payload, timeout=30
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    return result
+                elif response.status_code == 503:
+                    # Model is loading, wait and retry
+                    wait_time = 2**attempt
+                    print(f"Model loading, waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    continue
+                elif response.status_code == 401:
+                    print("HuggingFace API authentication failed - check your API key")
+                    self.enabled = False
+                    return None
+                elif response.status_code == 429:
+                    print("Rate limit exceeded, waiting before retry...")
+                    time.sleep(5)
+                    continue
+                else:
+                    print(f"HF API error: {response.status_code} - {response.text}")
+                    return None
+
+            except requests.exceptions.Timeout:
+                print(f"Request timeout (attempt {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
+                    return None
+            except requests.exceptions.RequestException as e:
+                print(f"Request error (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    return None
+
+        return None
+
+    def analyze_sentiment_advanced(self, text: str) -> dict:
+        """Advanced sentiment analysis using Hugging Face"""
+        if not self.enabled:
+            return None
+
+        try:
+            # Truncate text to avoid API limits
+            text_input = text[:512] if len(text) > 512 else text
+
+            result = self.query_model(
+                "cardiffnlp/twitter-roberta-base-sentiment-latest",
+                {"inputs": text_input},
+            )
+
+            if result and isinstance(result, list) and len(result) > 0:
+                # Handle different response formats
+                if isinstance(result[0], list):
+                    scores = result[0]
+                else:
+                    scores = result
+
+                # Get the highest scoring sentiment
+                best_sentiment = max(scores, key=lambda x: x.get("score", 0))
+                return {
+                    "label": best_sentiment.get("label", "UNKNOWN"),
+                    "score": best_sentiment.get("score", 0),
+                    "all_scores": scores,
+                }
+        except Exception as e:
+            print(f"Sentiment analysis error: {e}")
+
+        return None
+
+    def extract_keywords_ai(self, text: str) -> List[str]:
+        """AI-powered keyword extraction using summarization"""
+        if not self.enabled:
+            return []
+
+        try:
+            # Use the configured model or fall back to BART
+            model_name = (
+                HF_MODEL if "bart" in HF_MODEL.lower() else "facebook/bart-large-cnn"
+            )
+
+            result = self.query_model(
+                model_name,
+                {
+                    "inputs": text,
+                    "parameters": {
+                        "max_length": 50,
+                        "min_length": 10,
+                        "do_sample": False,
+                    },
+                },
+            )
+
+            if result and isinstance(result, list) and len(result) > 0:
+                summary_text = result[0].get("summary_text", "")
+                # Extract meaningful words from summary
+                words = re.findall(r"\b[a-zA-Z]{4,}\b", summary_text.lower())
+                # Remove common words and return unique keywords
+                common_words = {
+                    "this",
+                    "that",
+                    "with",
+                    "have",
+                    "will",
+                    "from",
+                    "they",
+                    "been",
+                    "were",
+                    "said",
+                    "each",
+                    "which",
+                    "their",
+                    "time",
+                    "more",
+                    "very",
+                    "what",
+                    "know",
+                    "just",
+                    "first",
+                    "into",
+                    "over",
+                    "think",
+                    "also",
+                    "your",
+                    "work",
+                    "life",
+                    "only",
+                    "can",
+                }
+                keywords = [word for word in words if word not in common_words]
+                return list(set(keywords))[:10]
+
+        except Exception as e:
+            print(f"AI keyword extraction error: {e}")
+
+        return []
+
+    def generate_content_suggestions(self, text: str, keywords: List[str]) -> List[str]:
+        """Generate content improvement suggestions"""
+        if not self.enabled:
+            return []
+
+        try:
+            # Create a focused prompt for content analysis
+            analysis_text = text[:300] + "..." if len(text) > 300 else text
+            keyword_list = ", ".join(keywords[:5])
+
+            # For now, return rule-based suggestions since complex text generation
+            # requires more sophisticated prompting
+            suggestions = []
+
+            # Analyze content characteristics
+            sentences = sent_tokenize(text)
+            avg_sentence_length = (
+                sum(len(word_tokenize(s)) for s in sentences) / len(sentences)
+                if sentences
+                else 0
+            )
+
+            if avg_sentence_length > 25:
+                suggestions.append("Break down long sentences to improve readability")
+
+            if len(keywords) < 5:
+                suggestions.append(
+                    "Consider adding more relevant keywords throughout your content"
+                )
+
+            if len(text.split("\n\n")) < 3:
+                suggestions.append(
+                    "Add more paragraph breaks to improve content structure"
+                )
+
+            return suggestions[:3]
+
+        except Exception as e:
+            print(f"Content suggestions error: {e}")
+
+        return []
+
+
 class SEOAnalyzer:
-    def __init__(self):
-        self.stop_words = set(stopwords.words("english"))
+    def __init__(self, hf_client: HuggingFaceClient):
+        try:
+            self.stop_words = set(stopwords.words("english"))
+        except:
+            # Fallback if NLTK stopwords aren't available
+            self.stop_words = set(
+                [
+                    "i",
+                    "me",
+                    "my",
+                    "myself",
+                    "we",
+                    "our",
+                    "ours",
+                    "ourselves",
+                    "you",
+                    "your",
+                    "yours",
+                    "yourself",
+                    "yourselves",
+                    "he",
+                    "him",
+                    "his",
+                    "himself",
+                    "she",
+                    "her",
+                    "hers",
+                    "herself",
+                    "it",
+                    "its",
+                    "itself",
+                    "they",
+                    "them",
+                    "their",
+                    "theirs",
+                    "themselves",
+                    "what",
+                    "which",
+                    "who",
+                    "whom",
+                    "this",
+                    "that",
+                    "these",
+                    "those",
+                    "am",
+                    "is",
+                    "are",
+                    "was",
+                    "were",
+                    "be",
+                    "been",
+                    "being",
+                    "have",
+                    "has",
+                    "had",
+                    "having",
+                    "do",
+                    "does",
+                    "did",
+                    "doing",
+                    "a",
+                    "an",
+                    "the",
+                    "and",
+                    "but",
+                    "if",
+                    "or",
+                    "because",
+                    "as",
+                    "until",
+                    "while",
+                    "of",
+                    "at",
+                    "by",
+                    "for",
+                    "with",
+                    "through",
+                    "during",
+                    "before",
+                    "after",
+                    "above",
+                    "below",
+                    "up",
+                    "down",
+                    "in",
+                    "out",
+                    "on",
+                    "off",
+                    "over",
+                    "under",
+                    "again",
+                    "further",
+                    "then",
+                    "once",
+                ]
+            )
+        self.hf_client = hf_client
 
     def extract_title(self, text: str) -> str:
         """Extract or generate a title from the text"""
         lines = text.strip().split("\n")
+        # Look for the first meaningful line that could be a title
         for line in lines[:3]:
             line = line.strip()
-            if line and len(line) < 100 and not line.endswith("."):
+            if line and len(line) < 100 and not line.endswith(".") and len(line) > 10:
                 return line
 
+        # Fall back to first sentence if no clear title
         sentences = sent_tokenize(text)
         if sentences:
             first_sentence = sentences[0]
             if len(first_sentence) <= 60:
                 return first_sentence.rstrip(".")
             else:
-                return first_sentence[:60] + "..."
+                return first_sentence[:57] + "..."
 
-        return text[:60] + "..." if len(text) > 60 else text
+        # Last resort: truncate text
+        return (text[:60] + "...") if len(text) > 60 else text
 
     def generate_meta_description(self, text: str) -> str:
         """Generate a meta description from the text"""
@@ -119,53 +432,115 @@ class SEOAnalyzer:
         description = ""
 
         for sentence in sentences:
-            if len(description + sentence) <= 160:
-                description += sentence + " "
+            potential_desc = description + sentence + " "
+            if len(potential_desc) <= 155:  # Leave room for "..."
+                description = potential_desc
             else:
                 break
 
-        return description.strip() or text[:160] + "..."
+        result = description.strip()
+        if not result:
+            result = text[:155] + "..." if len(text) > 155 else text
+        elif len(result) > 155:
+            result = result[:152] + "..."
+
+        return result
 
     def extract_keywords(self, text: str, max_keywords: int = 10) -> List[str]:
-        """Extract important keywords from the text"""
+        """Extract important keywords using traditional NLP + AI enhancement"""
+        # Traditional keyword extraction
         text_lower = text.lower()
         cleaned_text = re.sub(r"[^\w\s]", " ", text_lower)
-        tokens = word_tokenize(cleaned_text)
 
+        try:
+            tokens = word_tokenize(cleaned_text)
+        except:
+            # Fallback tokenization
+            tokens = cleaned_text.split()
+
+        # Filter meaningful words
         filtered_words = [
             word
             for word in tokens
-            if word not in self.stop_words and len(word) > 3 and word.isalpha()
+            if word not in self.stop_words
+            and len(word) > 3
+            and word.isalpha()
+            and not word.isdigit()
         ]
 
+        # Count frequency
         word_freq = Counter(filtered_words)
-        keywords = [word for word, freq in word_freq.most_common(max_keywords)]
+        traditional_keywords = [
+            word for word, freq in word_freq.most_common(max_keywords * 2)
+        ]
 
-        return keywords
+        # Try to enhance with AI keywords
+        ai_keywords = self.hf_client.extract_keywords_ai(text)
+
+        # Combine and deduplicate, prioritizing AI keywords
+        combined_keywords = []
+        seen = set()
+
+        # Add AI keywords first
+        for kw in ai_keywords:
+            if kw not in seen and len(kw) > 2:
+                combined_keywords.append(kw)
+                seen.add(kw)
+
+        # Add traditional keywords
+        for kw in traditional_keywords:
+            if kw not in seen and len(combined_keywords) < max_keywords:
+                combined_keywords.append(kw)
+                seen.add(kw)
+
+        return combined_keywords[:max_keywords]
 
     def calculate_readability(self, text: str) -> float:
         """Calculate readability score using multiple metrics"""
         try:
             flesch_score = textstat.flesch_reading_ease(text)
-            normalized_score = max(0, min(100, flesch_score))
-            return round(normalized_score, 1)
+            return max(0.0, min(100.0, round(flesch_score, 1)))
         except:
-            sentences = sent_tokenize(text)
-            words = word_tokenize(text)
+            # Fallback calculation
+            try:
+                sentences = sent_tokenize(text)
+                words = word_tokenize(text)
+            except:
+                sentences = text.split(".")
+                words = text.split()
 
             if not sentences or not words:
                 return 50.0
 
+            # Simple readability approximation
             avg_sentence_length = len(words) / len(sentences)
-            avg_word_length = sum(len(word) for word in words) / len(words)
+            avg_word_length = sum(len(word) for word in words if word.isalpha()) / max(
+                1, len([w for w in words if w.isalpha()])
+            )
 
-            score = 100 - (avg_sentence_length * 1.5) - (avg_word_length * 2)
-            return max(0, min(100, round(score, 1)))
+            # Flesch-like formula
+            score = (
+                206.835 - (1.015 * avg_sentence_length) - (84.6 * avg_word_length / 100)
+            )
+            return max(0.0, min(100.0, round(score, 1)))
 
     def analyze_sentiment(
         self, text: str
     ) -> Literal["Positive", "Neutral", "Negative"]:
-        """Analyze sentiment of the text"""
+        """Analyze sentiment using AI-enhanced analysis"""
+        # Try AI-powered sentiment analysis first
+        ai_sentiment = self.hf_client.analyze_sentiment_advanced(text)
+
+        if ai_sentiment:
+            label = ai_sentiment["label"].upper()
+            if "POSITIVE" in label or "POS" in label:
+                return "Positive"
+            elif "NEGATIVE" in label or "NEG" in label:
+                return "Negative"
+            else:
+                return "Neutral"
+
+        # Fallback to TextBlob
         try:
             blob = TextBlob(text)
             polarity = blob.sentiment.polarity
@@ -181,8 +556,13 @@ class SEOAnalyzer:
 
     def count_words(self, text: str) -> int:
         """Count words in the text"""
-        words = word_tokenize(text)
-        return len([word for word in words if word.isalpha()])
+        try:
+            words = word_tokenize(text)
+            return len([word for word in words if word.isalpha()])
+        except:
+            # Fallback word counting
+            words = re.findall(r"\b[a-zA-Z]+\b", text)
+            return len(words)
 
     def calculate_reading_time(self, word_count: int) -> int:
         """Calculate reading time based on average reading speed (200 words per minute)"""
@@ -190,36 +570,61 @@ class SEOAnalyzer:
 
     def generate_summary(self, text: str, max_length: int = 200) -> str:
         """Generate a summary of the text"""
-        sentences = sent_tokenize(text)
+        try:
+            sentences = sent_tokenize(text)
+        except:
+            sentences = text.split(".")
+
         if not sentences:
             return text[:max_length] + "..." if len(text) > max_length else text
 
         summary = ""
         for sentence in sentences:
-            if len(summary + sentence) <= max_length:
-                summary += sentence + " "
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            potential_summary = summary + sentence + ". "
+            if len(potential_summary) <= max_length:
+                summary = potential_summary
             else:
                 break
 
-        return summary.strip() or text[:max_length] + "..."
+        result = summary.strip()
+        if not result:
+            result = text[:max_length] + "..." if len(text) > max_length else text
+
+        return result
 
     def analyze_content_structure(self, text: str) -> ContentStructure:
         """Analyze content structure including headings, paragraphs, etc."""
-
-        # Simple heading detection for plain text
         lines = text.split("\n")
         headings = {"h1": 0, "h2": 0, "h3": 0, "h4": 0, "issues": []}
 
-        # Look for potential headings (short lines, title case, etc.)
+        # Enhanced heading detection
         for line in lines:
             line = line.strip()
-            if line and len(line) < 100 and not line.endswith("."):
-                if line.isupper():
-                    headings["h1"] += 1
-                elif line.title() == line:
-                    headings["h2"] += 1
+            if not line or len(line) > 100:
+                continue
 
-        # Add issues if no headings found
+            # Check for common heading patterns
+            if line.isupper() and len(line.split()) <= 8:
+                headings["h1"] += 1
+            elif (
+                line.title() == line
+                and not line.endswith(".")
+                and len(line.split()) <= 10
+            ):
+                headings["h2"] += 1
+            elif line.startswith("#"):
+                # Markdown headers
+                if line.startswith("# "):
+                    headings["h1"] += 1
+                elif line.startswith("## "):
+                    headings["h2"] += 1
+                elif line.startswith("### "):
+                    headings["h3"] += 1
+
+        # Analyze issues
         if headings["h1"] == 0 and headings["h2"] == 0:
             headings["issues"].append(
                 "No clear headings found - consider adding structure"
@@ -233,9 +638,18 @@ class SEOAnalyzer:
             for p in re.split(r"\n\s*\n", text)
             if p.strip() and len(p.strip()) > 20
         ]
-        word_counts = [len(word_tokenize(p)) for p in paragraphs_text]
-        avg_paragraph_length = sum(word_counts) / len(word_counts) if word_counts else 0
-        long_paragraphs = len([wc for wc in word_counts if wc > 150])
+
+        if paragraphs_text:
+            try:
+                word_counts = [len(word_tokenize(p)) for p in paragraphs_text]
+            except:
+                word_counts = [len(p.split()) for p in paragraphs_text]
+
+            avg_paragraph_length = sum(word_counts) / len(word_counts)
+            long_paragraphs = len([wc for wc in word_counts if wc > 150])
+        else:
+            avg_paragraph_length = 0
+            long_paragraphs = 0
 
         paragraphs_analysis = {
             "total": len(paragraphs_text),
@@ -280,15 +694,26 @@ class SEOAnalyzer:
         keywords = self.extract_keywords(text, max_keywords=20)
         linking_suggestions = []
 
-        if any(keyword in ["guide", "tutorial", "how"] for keyword in keywords):
+        # Get AI-powered suggestions
+        ai_suggestions = self.hf_client.generate_content_suggestions(text, keywords)
+        linking_suggestions.extend(ai_suggestions)
+
+        # Add traditional suggestions
+        keyword_set = set(kw.lower() for kw in keywords)
+        if any(word in keyword_set for word in ["guide", "tutorial", "how", "step"]):
             linking_suggestions.append(
                 "Link to related tutorials or guides on your website"
             )
-        if any(keyword in ["product", "service", "solution"] for keyword in keywords):
+        if any(
+            word in keyword_set for word in ["product", "service", "solution", "tool"]
+        ):
             linking_suggestions.append("Add links to relevant product or service pages")
-        if any(keyword in ["research", "study", "data"] for keyword in keywords):
+        if any(
+            word in keyword_set for word in ["research", "study", "data", "analysis"]
+        ):
             linking_suggestions.append("Link to supporting research or case studies")
 
+        # Default suggestions if none found
         if not linking_suggestions:
             linking_suggestions = [
                 "Add links to related articles on your website",
@@ -408,7 +833,7 @@ class SEOAnalyzer:
         description: str,
         content_structure: ContentStructure,
     ) -> List[Recommendation]:
-        """Generate comprehensive SEO recommendations with actionable fixes"""
+        """Generate comprehensive SEO recommendations"""
         recommendations = []
         rec_id = 1
 
@@ -444,20 +869,37 @@ class SEOAnalyzer:
             )
             rec_id += 1
 
-        # Primary keyword optimization
+        # Meta description optimization
+        if len(description) < 120:
+            recommendations.append(
+                Recommendation(
+                    id=rec_id,
+                    title="Expand Meta Description",
+                    description="Your meta description is too short. Expand it to 120-160 characters to provide more context and improve click-through rates.",
+                    impact="Medium",
+                    effort="Quick Fix",
+                    category="Technical",
+                    priority=2,
+                    actionable=True,
+                    fixSuggestion="Add more descriptive text about your content's value proposition and include relevant keywords naturally.",
+                )
+            )
+            rec_id += 1
+
+        # Keyword optimization
         if keywords:
             primary_keyword = keywords[0]
             recommendations.append(
                 Recommendation(
                     id=rec_id,
-                    title=f"Optimize for '{primary_keyword}'",
-                    description=f"Ensure your primary keyword '{primary_keyword}' appears in your title, first paragraph, and naturally throughout the content.",
+                    title=f"Optimize for Primary Keyword: '{primary_keyword}'",
+                    description=f"Focus on your primary keyword '{primary_keyword}' by ensuring it appears strategically throughout your content.",
                     impact="High",
-                    effort="Quick Fix",
+                    effort="Moderate",
                     category="Keywords",
                     priority=1,
                     actionable=True,
-                    fixSuggestion=f"1. Include '{primary_keyword}' in your title\n2. Mention '{primary_keyword}' in the first paragraph\n3. Use it in 2-3 subheadings\n4. Include variations throughout content",
+                    fixSuggestion=f"1. Include '{primary_keyword}' in your title tag\n2. Use '{primary_keyword}' in the first 100 words\n3. Add '{primary_keyword}' to H2/H3 subheadings\n4. Maintain 1-2% keyword density throughout content",
                 )
             )
             rec_id += 1
@@ -474,7 +916,7 @@ class SEOAnalyzer:
                     category="Content",
                     priority=1,
                     actionable=True,
-                    fixSuggestion="Add sections covering: examples, benefits, step-by-step instructions, FAQs, or related tips to expand your content meaningfully.",
+                    fixSuggestion="Add sections covering: detailed explanations, examples, step-by-step guides, FAQs, or case studies to expand your content meaningfully.",
                 )
             )
             rec_id += 1
@@ -484,19 +926,39 @@ class SEOAnalyzer:
             recommendations.append(
                 Recommendation(
                     id=rec_id,
-                    title="Enhance Content Clarity",
-                    description="Break up long sentences and use more common words to make your content easier to read and understand.",
+                    title="Improve Content Readability",
+                    description="Your content complexity may hinder user engagement. Simplify language and structure for better accessibility.",
                     impact="Medium",
-                    effort="Quick Fix",
+                    effort="Moderate",
                     category="Content",
-                    priority=3,
+                    priority=2,
                     actionable=True,
-                    fixSuggestion="1. Split sentences longer than 20 words\n2. Replace complex words with simpler alternatives\n3. Add bullet points for lists\n4. Keep paragraphs to 3-4 sentences max",
+                    fixSuggestion="1. Replace complex words with simpler alternatives\n2. Split sentences longer than 20 words\n3. Use transition words for flow\n4. Add bullet points and numbered lists\n5. Include subheadings every 200-300 words",
                 )
             )
             rec_id += 1
 
-        return recommendations[:8]
+        # Structure recommendations
+        if (
+            content_structure.headings.get("h1", 0) == 0
+            and content_structure.headings.get("h2", 0) == 0
+        ):
+            recommendations.append(
+                Recommendation(
+                    id=rec_id,
+                    title="Add Content Structure",
+                    description="Your content lacks clear headings. Add headings to improve readability and SEO.",
+                    impact="Medium",
+                    effort="Quick Fix",
+                    category="Content",
+                    priority=2,
+                    actionable=True,
+                    fixSuggestion="Add H2 and H3 headings every 200-300 words to break up your content and make it more scannable.",
+                )
+            )
+            rec_id += 1
+
+        return recommendations[:8]  # Limit to 8 recommendations
 
     def analyze(self, text: str) -> AnalysisResult:
         """Perform complete SEO analysis"""
@@ -562,18 +1024,24 @@ class SEOAnalyzer:
         )
 
 
-# Initialize analyzer
-analyzer = SEOAnalyzer()
+# Initialize Hugging Face client and analyzer
+hf_client = HuggingFaceClient(HF_API_KEY)
+analyzer = SEOAnalyzer(hf_client)
 
 
 @app.get("/")
 async def root():
-    return {"message": "SEO Analysis API is running"}
+    return {
+        "message": "AI-Powered SEO Analysis API is running",
+        "ai_enabled": hf_client.enabled,
+        "version": "2.0.0",
+        "hf_model": HF_MODEL,
+    }
 
 
 @app.post("/analyze", response_model=AnalysisResult)
 async def analyze_content(request: AnalysisRequest):
-    """Analyze content for SEO insights"""
+    """Analyze content for SEO insights using AI enhancement"""
     if not request.text.strip():
         # Return empty analysis with proper structure
         empty_structure = ContentStructure(
@@ -608,7 +1076,7 @@ async def analyze_content(request: AnalysisRequest):
                     category="Content",
                     priority=1,
                     actionable=True,
-                    fixSuggestion="Paste your content into the text area and click analyze again.",
+                    fixSuggestion="Paste your content into the text area and click analyze again to get AI-powered insights.",
                 )
             ],
             metaTags=MetaTags(
@@ -633,6 +1101,9 @@ async def analyze_content(request: AnalysisRequest):
         return result
     except Exception as e:
         print(f"Analysis error: {e}")
+        import traceback
+
+        traceback.print_exc()
 
         # Return error response with proper structure
         error_structure = ContentStructure(
@@ -658,7 +1129,7 @@ async def analyze_content(request: AnalysisRequest):
                 Recommendation(
                     id=1,
                     title="Analysis Error",
-                    description="An error occurred during analysis. Please try again with different content.",
+                    description=f"An error occurred during analysis: {str(e)}",
                     impact="High",
                     effort="Quick Fix",
                     category="Technical",
@@ -689,8 +1160,85 @@ async def analyze_content(request: AnalysisRequest):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint with detailed status"""
+    models_status = {}
+
+    if hf_client.enabled:
+        # Test basic connectivity to HuggingFace
+        try:
+            test_result = hf_client.query_model(
+                "cardiffnlp/twitter-roberta-base-sentiment-latest", {"inputs": "test"}
+            )
+            models_status["sentiment"] = "available" if test_result else "error"
+        except:
+            models_status["sentiment"] = "error"
+    else:
+        models_status["sentiment"] = "disabled"
+
+    return {
+        "status": "healthy",
+        "ai_status": "enabled" if hf_client.enabled else "disabled",
+        "hf_api_key_configured": bool(HF_API_KEY),
+        "hf_model": HF_MODEL,
+        "models_status": models_status,
+        "nltk_data": {
+            "punkt": _check_nltk_data("tokenizers/punkt"),
+            "stopwords": _check_nltk_data("corpora/stopwords"),
+        },
+        "version": "2.0.0",
+    }
+
+
+def _check_nltk_data(resource: str) -> bool:
+    """Check if NLTK data is available"""
+    try:
+        nltk.data.find(resource)
+        return True
+    except LookupError:
+        return False
+
+
+@app.get("/test-ai")
+async def test_ai_features():
+    """Test AI features endpoint"""
+    if not hf_client.enabled:
+        raise HTTPException(
+            status_code=503, detail="AI features disabled - HF_API_KEY not configured"
+        )
+
+    test_text = (
+        "This is a sample text for testing our AI-powered SEO analysis features."
+    )
+
+    results = {}
+
+    # Test sentiment analysis
+    try:
+        sentiment_result = hf_client.analyze_sentiment_advanced(test_text)
+        results["sentiment_analysis"] = {
+            "status": "working" if sentiment_result else "error",
+            "result": sentiment_result,
+        }
+    except Exception as e:
+        results["sentiment_analysis"] = {"status": "error", "error": str(e)}
+
+    # Test keyword extraction
+    try:
+        keywords_result = hf_client.extract_keywords_ai(test_text)
+        results["keyword_extraction"] = {
+            "status": "working" if keywords_result else "error",
+            "result": keywords_result,
+        }
+    except Exception as e:
+        results["keyword_extraction"] = {"status": "error", "error": str(e)}
+
+    return {"ai_enabled": True, "test_results": results, "hf_model": HF_MODEL}
 
 
 if __name__ == "__main__":
+    print(f"Starting SEO Analysis API...")
+    print(f"HuggingFace API Key configured: {bool(HF_API_KEY)}")
+    print(f"HuggingFace Model: {HF_MODEL}")
+    print(f"AI Features: {'Enabled' if HF_API_KEY else 'Disabled'}")
+
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
