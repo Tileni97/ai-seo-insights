@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import re
@@ -13,6 +15,7 @@ import json
 from typing import Literal, List, Dict, Any
 from dotenv import load_dotenv
 import time
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -1028,9 +1031,15 @@ class SEOAnalyzer:
 hf_client = HuggingFaceClient(HF_API_KEY)
 analyzer = SEOAnalyzer(hf_client)
 
+# Check if static directory exists and mount it
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-@app.get("/")
-async def root():
+
+# API Routes
+@app.get("/api/status")
+async def api_status():
     return {
         "message": "AI-Powered SEO Analysis API is running",
         "ai_enabled": hf_client.enabled,
@@ -1039,7 +1048,7 @@ async def root():
     }
 
 
-@app.post("/analyze", response_model=AnalysisResult)
+@app.post("/api/analyze", response_model=AnalysisResult)
 async def analyze_content(request: AnalysisRequest):
     """Analyze content for SEO insights using AI enhancement"""
     if not request.text.strip():
@@ -1198,7 +1207,7 @@ def _check_nltk_data(resource: str) -> bool:
         return False
 
 
-@app.get("/test-ai")
+@app.get("/api/test-ai")
 async def test_ai_features():
     """Test AI features endpoint"""
     if not hf_client.enabled:
@@ -1235,10 +1244,54 @@ async def test_ai_features():
     return {"ai_enabled": True, "test_results": results, "hf_model": HF_MODEL}
 
 
+# Serve React app for frontend routes
+@app.get("/")
+async def serve_frontend():
+    """Serve the React frontend"""
+    if static_dir.exists():
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+
+    # Fallback if no static files found
+    return {
+        "message": "AI-Powered SEO Analysis API",
+        "frontend": "not_found",
+        "api_endpoints": {
+            "analyze": "/api/analyze",
+            "health": "/health",
+            "status": "/api/status",
+            "test_ai": "/api/test-ai",
+            "docs": "/docs",
+        },
+    }
+
+
+@app.get("/{full_path:path}")
+async def serve_frontend_routes(full_path: str):
+    """Catch-all route to serve React app for frontend routes"""
+    # Don't serve static files for API routes or docs
+    if full_path.startswith(("api/", "docs", "openapi.json", "health")):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Serve React app for all other routes
+    if static_dir.exists():
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+
+    # Fallback if no static files
+    raise HTTPException(status_code=404, detail="Frontend not found")
+
+
 if __name__ == "__main__":
     print(f"Starting SEO Analysis API...")
     print(f"HuggingFace API Key configured: {bool(HF_API_KEY)}")
     print(f"HuggingFace Model: {HF_MODEL}")
     print(f"AI Features: {'Enabled' if HF_API_KEY else 'Disabled'}")
+    print(f"Static files directory: {static_dir}")
+    print(f"Static files exist: {static_dir.exists()}")
 
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+    # Use Railway's PORT environment variable
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
